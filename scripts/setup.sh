@@ -46,14 +46,14 @@ NO_CUDA_EXT=1 python -m pip install -e . --no-build-isolation --no-deps -v
 
 # Download only selected Turtle pretrained models
 python -m pip install gdown
-mkdir -p ../Turtle/trained_models
+mkdir -p ../Turtle/basicsr/trained_models
 
 python - <<'PY'
 import json, subprocess, sys
 from pathlib import Path
 
 url = "https://drive.google.com/drive/folders/1Mur4IboaNgEW5qyynTIHq8CSAGtyykrA"
-out = Path("../Turtle/trained_models")
+out = Path("../Turtle/basicsr/trained_models")
 keep = {"GoPro_Deblur.pth", "Desnow.pth", "Raindrop.pth"}
 
 items = json.loads(subprocess.check_output(
@@ -74,132 +74,108 @@ PY
 
 # Download datasets
 mkdir -p ../datasets/raw
-gdown --folder "https://drive.google.com/drive/folders/1h21xh9JVhb_gmet8Vj8gxZy1_PpKJr8L" \
-  -O ../datasets/raw 
+gdown --fuzzy "https://drive.google.com/file/d/1S3fOnl-SEgiapFPm2s0VtUDeVYwdAnL_/view" \
+  -O ../datasets/raw/final_scenes.zip
 
 # Preprocess datasets
 #cd ../datasets/raw
 # unzip the datasets if needed
-# Check if the datasets consist of videos or images
-# If the datasets consist of videos, move it to ../degraded/video
-# If the dataset consists of images, move it to ../degraded/images
-# The images structure must follow this structure
-# └── images/
-#     ├── train/
-#     └── test/
-#         ├── blur
-#            ├── video_1
-#            │   ├── Fame1
+# The dataset consist of images in this structure:
+# └── raw/
+#     ├── final_scenes/
+#     └── factory_rain/
+#         ├── gt
+#         │   ├── xxxx.png
+#              ...
+#         │   ├── xxxx.png
+#         ├── images
+#         │   ├── xxxx.png
+#              ...
+#         │   ├── xxxx.png
+#         ├── masks
+#         ├── sparse
+#         ├── weather_images
+#     └── #other scenes with same structure as factory rain/
+
+# For each scene, copy gt and images folders to the WeatherGS folder with this structure
+# The "images" folder becomes the "degraded" folder, and the "gt" folder becomes the "gt" folder in the WeatherGS dataset.
+# └── WeatherGS/
+#         ├── degraded
+#            ├── factory_rain/
+#            │   ├── xxxx.png
 #            │   ....
-#            └── video_n
-#            │   ├── Fame1
+#            └── Other_scenes/
+#            │   ├── xxxx.png
 #            │   ....
 #         └── gt
-#            ├── video_1
-#            │   ├── Fame1
+#            ├── factory_rain/
+#            │   ├── xxxx.png
 #            │   ....
-#            └── video_n
-#            │   ├── Fame1
+#            └── Other_scenes/
+#            │   ├── xxxx.png
 #            │   ....
 
-# Preprocess datasets
+# Preprocess WeatherGS-Snow and WeatherGS-Rain datasets
 RAW_DIR="../datasets/raw"
-DEG_DIR="../datasets/degraded"
-VIDEO_DIR="$DEG_DIR/video"
-IMAGE_DIR="$DEG_DIR/images"
+SCENE_ROOT="$RAW_DIR/final_scenes"
 
-mkdir -p "$RAW_DIR" "$VIDEO_DIR"
-mkdir -p "$IMAGE_DIR"/{train,test}/{blur,gt}
+SNOW_DIR="../datasets/WeatherGS-Snow"
+RAIN_DIR="../datasets/WeatherGS-Rain"
 
-echo "Extracting archives if needed..."
+echo "Extracting final_scenes.zip..."
+unzip -o -q "$RAW_DIR/final_scenes.zip" -d "$RAW_DIR"
 
-find "$RAW_DIR" -type f \( \
-  -iname "*.zip" -o \
-  -iname "*.tar" -o \
-  -iname "*.tar.gz" -o \
-  -iname "*.tgz" \
-\) -print0 | while IFS= read -r -d '' archive; do
-    lower="${archive,,}"
+echo "Creating WeatherGS-Snow and WeatherGS-Rain dataset structures..."
 
-    if [[ "$lower" == *.tar.gz || "$lower" == *.tgz ]]; then
-        out_dir="${archive%.*.*}"
-    else
-        out_dir="${archive%.*}"
+rm -rf "$SNOW_DIR/degraded" "$SNOW_DIR/gt"
+rm -rf "$RAIN_DIR/degraded" "$RAIN_DIR/gt"
+
+mkdir -p "$SNOW_DIR/degraded" "$SNOW_DIR/gt"
+mkdir -p "$RAIN_DIR/degraded" "$RAIN_DIR/gt"
+
+snow_count=0
+rain_count=0
+skip_count=0
+
+for scene_dir in "$SCENE_ROOT"/*; do
+    [ -d "$scene_dir" ] || continue
+
+    scene_name="$(basename "$scene_dir")"
+    scene_name_lower="${scene_name,,}"
+
+    src_images="$scene_dir/images"
+    src_gt="$scene_dir/gt"
+
+    if [[ ! -d "$src_images" || ! -d "$src_gt" ]]; then
+        echo "Skipping $scene_name because images/ or gt/ is missing"
+        skip_count=$((skip_count + 1))
+        continue
     fi
 
-    mkdir -p "$out_dir"
+    if [[ "$scene_name_lower" == *"snow"* ]]; then
+        target_dir="$SNOW_DIR"
+        snow_count=$((snow_count + 1))
+        echo "Processing snow scene: $scene_name"
 
-    case "$lower" in
-        *.zip)
-            unzip -o -q "$archive" -d "$out_dir"
-            ;;
-        *.tar|*.tar.gz|*.tgz)
-            tar -xf "$archive" -C "$out_dir"
-            ;;
-    esac
+    elif [[ "$scene_name_lower" == *"rain"* ]]; then
+        target_dir="$RAIN_DIR"
+        rain_count=$((rain_count + 1))
+        echo "Processing rain scene: $scene_name"
+
+    else
+        echo "Skipping $scene_name because scene name does not contain snow or rain"
+        skip_count=$((skip_count + 1))
+        continue
+    fi
+
+    mkdir -p "$target_dir/degraded/$scene_name"
+    mkdir -p "$target_dir/gt/$scene_name"
+
+    cp -a "$src_images"/. "$target_dir/degraded/$scene_name"/
+    cp -a "$src_gt"/. "$target_dir/gt/$scene_name"/
 done
 
-echo "Moving video datasets..."
-
-find "$RAW_DIR" -type f \( \
-  -iname "*.mp4" -o \
-  -iname "*.avi" -o \
-  -iname "*.mov" -o \
-  -iname "*.mkv" -o \
-  -iname "*.webm" \
-\) -print0 | while IFS= read -r -d '' video; do
-    rel="${video#$RAW_DIR/}"
-    dest="$VIDEO_DIR/$(dirname "$rel")"
-    mkdir -p "$dest"
-    mv -n "$video" "$dest/"
-done
-
-echo "Moving image datasets..."
-
-declare -A group_ids
-group_counter=0
-
-while IFS= read -r -d '' img; do
-    lower="/${img,,}/"
-
-    # Detect train/test from path name
-    if [[ "$lower" == *"/train/"* ]]; then
-        split="train"
-    else
-        split="test"
-    fi
-
-    # Detect blur/gt from path name
-    if [[ "$lower" == *"/gt/"* || "$lower" == *"/ground_truth/"* || "$lower" == *"/sharp/"* || "$lower" == *"/clear/"* ]]; then
-        kind="gt"
-    else
-        kind="blur"
-    fi
-
-    rel="${img#$RAW_DIR/}"
-    parent="$(dirname "$rel")"
-    key="$split/$kind/$parent"
-
-    # Each original folder becomes video_1, video_2, ...
-    if [[ -z "${group_ids[$key]+x}" ]]; then
-        group_counter=$((group_counter + 1))
-        group_ids[$key]="video_${group_counter}"
-    fi
-
-    dest="$IMAGE_DIR/$split/$kind/${group_ids[$key]}"
-    mkdir -p "$dest"
-    mv -n "$img" "$dest/"
-
-done < <(find "$RAW_DIR" -type f \( \
-  -iname "*.jpg" -o \
-  -iname "*.jpeg" -o \
-  -iname "*.png" -o \
-  -iname "*.bmp" -o \
-  -iname "*.tif" -o \
-  -iname "*.tiff" -o \
-  -iname "*.webp" \
-\) -print0)
-
-echo "Dataset preprocessing finished."
-echo "Videos are in: $VIDEO_DIR"
-echo "Images are in: $IMAGE_DIR"
+echo "WeatherGS preprocessing finished."
+echo "Snow scenes:    $snow_count -> $SNOW_DIR"
+echo "Rain scenes:    $rain_count -> $RAIN_DIR"
+echo "Skipped scenes: $skip_count"

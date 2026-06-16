@@ -27,7 +27,7 @@ from importlib import import_module
 placeholder_dp = "path to save noisy images for denoising task"
 
 #Path to the datasetfolder for inference
-pth_to_dataset_folder = "/datasets/"
+pth_to_dataset_folder = "../../"
 
 
 def ssim_calculate(img1, img2, sd=1.5, C1=0.01**2, C2=0.03**2):
@@ -145,7 +145,7 @@ class VideoLoader(torch.utils.data.Dataset):
         super().__init__()
         self.data_path = data_path
         self.in_files = sorted(glob.glob(os.path.join(data_path, video + "/*.*")))
-        self.gt_files = sorted(glob.glob(os.path.join(data_path.replace("blur", "gt"), video + "/*.*")))
+        self.gt_files = sorted(glob.glob(os.path.join(data_path.replace("degraded", "gt"), video + "/*.*")))
         self.len = len(self.in_files)
         print(f"> # of Frames in {video}: {len(self.in_files)}")
         self.transform = transforms.Compose([transforms.ToTensor()])
@@ -407,22 +407,26 @@ def main(model_path,
     print(f"tile_overlap: {tile_overlap}")
     print(F"sample: {sample}")
     
-    if dataset_name == "DAVIStest":
-        data_dir = pth_to_dataset_folder + "/datasets/DAVIS_testdev/DAVIS/JPEGImages/480p/"
-    elif dataset_name == "GoPro":
-        data_dir = pth_to_dataset_folder + "/datasets/GoPro/test/blur/"
-    elif dataset_name == "RSVD":
-        data_dir = pth_to_dataset_folder + "/datasets/Desnowing/rsvd/test/blur/"
-    elif dataset_name == "NightRain":
-        data_dir = pth_to_dataset_folder + "/datasets/NightRain/test/blur/"
-    elif dataset_name == "Set8":
-        data_dir = pth_to_dataset_folder + "/datasets/Set8/"
-    elif dataset_name == "VRDS":
-        data_dir = pth_to_dataset_folder + "/datasets/VRDS/test/rainstreak/blur/"
-    elif dataset_name == "BSD":
-        data_dir = pth_to_dataset_folder + "/datasets/BSD_3ms24ms/prepd_data/test/blur/"
-    elif dataset_name == "MVSR":
-        data_dir = pth_to_dataset_folder + "/datasets/MVSR4x/test/blur/"
+    # if dataset_name == "DAVIStest":
+    #     data_dir = pth_to_dataset_folder + "/datasets/DAVIS_testdev/DAVIS/JPEGImages/480p/"
+    # elif dataset_name == "GoPro":
+    #     data_dir = pth_to_dataset_folder + "/datasets/GoPro/test/blur/"
+    # elif dataset_name == "RSVD":
+    #     data_dir = pth_to_dataset_folder + "/datasets/Desnowing/rsvd/test/blur/"
+    # elif dataset_name == "NightRain":
+    #     data_dir = pth_to_dataset_folder + "/datasets/NightRain/test/blur/"
+    # elif dataset_name == "Set8":
+    #     data_dir = pth_to_dataset_folder + "/datasets/Set8/"
+    # elif dataset_name == "VRDS":
+    #     data_dir = pth_to_dataset_folder + "/datasets/VRDS/test/rainstreak/blur/"
+    # elif dataset_name == "BSD":
+    #     data_dir = pth_to_dataset_folder + "/datasets/BSD_3ms24ms/prepd_data/test/blur/"
+    # elif dataset_name == "MVSR":
+    #     data_dir = pth_to_dataset_folder + "/datasets/MVSR4x/test/blur/"
+    if dataset_name == "WeatherGS-Snow":
+        data_dir = pth_to_dataset_folder + "/datasets/WeatherGS-Snow/degraded/"
+    elif dataset_name == "WeatherGS-Rain":
+        data_dir = pth_to_dataset_folder + "/datasets/WeatherGS-Rain/degraded/"
     else:
         print(f"Invalid Options.")
         exit(0)
@@ -485,54 +489,54 @@ if __name__ == "__main__":
 
     # #----------------------------------------------------------------------------------------------------------
     #Desnowing
-    # config = "options/Turtle_Desnow.yml"
-    # model_path = "trained_models/Desnow.pth"
-    # model_name = "Gaia_Desnow_simple_full"
-    # print(model_name)
-    # _, _ = main(model_path=model_path,
-    #             model_name=model_name, 
-    #             config_file=config,
-
-    #             dataset_name="RSVD", #GoPro, SR, NightRain, DVD, Set8
-    #             task_name="Desnowing", #Deblurring, SR, Deraining, Deblurring, Denoising
-
-    #             model_type="t0",
-
-    #             save_image=True,
-    #             image_out_path="/outputs/",
-
-    #             do_pacthes=True,
-    #             tile=320,
-    #             tile_overlap=256)
-
-    # end = time.time()
-    # print(f"Completed in {end-st}s")
-
-
-    # ----------------------------------------------------------------------------------------------------------
-    # SR, MVSR Dataset
-    config = "options/Turtle_SR_MVSR.yml"
-    model_path = "trained_models/SuperResolution.pth"
-    model_name = "SR"
+    config = "options/Turtle_Desnow.yml"
+    model_path = "trained_models/Desnow.pth"
+    model_name = "Gaia_Desnow_simple_full"
     print(model_name)
     _, _ = main(model_path=model_path,
                 model_name=model_name, 
                 config_file=config,
 
-                dataset_name="MVSR", #GoPro, MVSR, NightRain, DVD, Set8
-                task_name="SuperResolution", #Deblurring, SuperResolution, Deraining, Deblurring, Denoising
+                dataset_name="WeatherGS-Snow", # RSVD, GoPro, SR, NightRain, DVD, Set8
+                task_name="Desnowing", #Deblurring, SR, Deraining, Deblurring, Denoising
 
-                model_type="SR", #t0,t1,SR
+                model_type="t0",
 
-                save_image=True,
-                image_out_path="/outputs/",
+                save_image=True,    
+                image_out_path="../../datasets/WeatherGS-Snow/restored/",
 
                 do_pacthes=True,
-                tile=256,
-                tile_overlap=64)
+                tile=320,
+                tile_overlap=256)
 
     end = time.time()
     print(f"Completed in {end-st}s")
+
+
+    # ----------------------------------------------------------------------------------------------------------
+    # SR, MVSR Dataset
+    # config = "options/Turtle_SR_MVSR.yml"
+    # model_path = "trained_models/SuperResolution.pth"
+    # model_name = "SR"
+    # print(model_name)
+    # _, _ = main(model_path=model_path,
+    #             model_name=model_name, 
+    #             config_file=config,
+
+    #             dataset_name="MVSR", #GoPro, MVSR, NightRain, DVD, Set8
+    #             task_name="SuperResolution", #Deblurring, SuperResolution, Deraining, Deblurring, Denoising
+
+    #             model_type="SR", #t0,t1,SR
+
+    #             save_image=True,
+    #             image_out_path="/outputs/",
+
+    #             do_pacthes=True,
+    #             tile=256,
+    #             tile_overlap=64)
+
+    # end = time.time()
+    # print(f"Completed in {end-st}s")
 
     # # ----------------------------------------------------------------------------------------------------------
     # #Deraining, night
@@ -571,13 +575,13 @@ if __name__ == "__main__":
     #             model_name=model_name, 
     #             config_file=config,
 
-    #             dataset_name="VRDS", #GoPro, SR, NightRain, DVD, Set8
+    #             dataset_name="WeatherGS-Rain", #GoPro, SR, NightRain, DVD, Set8
     #             task_name="Deraining", #Deblurring, SR, Deraining, Deblurring, Denoising
 
     #             model_type="t1",
 
     #             save_image=True,
-    #             image_out_path="/outputs/",
+    #             image_out_path="../../datasets/WeatherGS-Rain/restored/",
 
     #             do_pacthes=True,
     #             tile=320,
@@ -596,13 +600,13 @@ if __name__ == "__main__":
     #             model_name=model_name, 
     #             config_file=config,
 
-    #             dataset_name="GoPro", #GoPro, SR, NightRain, DVD, Set8
+    #             dataset_name="WeatherGS", #GoPro, SR, NightRain, DVD, Set8
     #             task_name="Deblurring", #Deblurring, SR, Deraining, Deblurring, Denoising
 
     #             model_type="t1",
 
     #             save_image=True,
-    #             image_out_path="/outputs/",
+    #             image_out_path="../../datasets/WeatherGS/restored/",
 
     #             do_pacthes=True,
     #             tile=320,
