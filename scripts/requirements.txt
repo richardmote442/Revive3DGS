@@ -3,10 +3,10 @@ plyfile
 tqdm
 opencv-python
 joblib
+torch
+torchvision
+torchaudio
 
-../gaussian-splatting/submodules/diff-gaussian-rasterization
-../gaussian-splatting/submodules/simple-knn
-../gaussian-splatting/submodules/fused-ssim
 
 # requirements for turtle
 addict
@@ -20,7 +20,5 @@ requests
 scikit-image
 scipy
 tb-nightly
-torch
-torchvision
 tqdm
 yapf

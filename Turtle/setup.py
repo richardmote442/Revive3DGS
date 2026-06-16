@@ -123,9 +123,15 @@ def get_requirements(filename='requirements.txt'):
 
 
 if __name__ == '__main__':
+    no_cuda_ext = ('--no_cuda_ext' in sys.argv) or (os.environ.get('NO_CUDA_EXT', '0') == '1')
+
     if '--no_cuda_ext' in sys.argv:
-        ext_modules = []
         sys.argv.remove('--no_cuda_ext')
+
+    if no_cuda_ext:
+        print('Building basicsr WITHOUT C++/CUDA extensions')
+        ext_modules = []
+        cmdclass = {}
     else:
         ext_modules = [
             make_cuda_ext(
@@ -147,6 +153,7 @@ if __name__ == '__main__':
                 sources=['src/upfirdn2d.cpp'],
                 sources_cuda=['src/upfirdn2d_kernel.cu']),
         ]
+        cmdclass = {'build_ext': BuildExtension}
 
     write_version_py()
     setup(
@@ -173,5 +180,5 @@ if __name__ == '__main__':
         setup_requires=['cython', 'numpy'],
         install_requires=get_requirements(),
         ext_modules=ext_modules,
-        cmdclass={'build_ext': BuildExtension},
+        cmdclass=cmdclass,
         zip_safe=False)
