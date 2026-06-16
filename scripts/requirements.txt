@@ -1,0 +1,26 @@
+# requirements for 3DGS
+plyfile
+tqdm
+opencv-python
+joblib
+
+../gaussian-splatting/submodules/diff-gaussian-rasterization
+../gaussian-splatting/submodules/simple-knn
+../gaussian-splatting/submodules/fused-ssim
+
+# requirements for turtle
+addict
+future
+lmdb
+numpy
+opencv-python
+Pillow
+pyyaml
+requests
+scikit-image
+scipy
+tb-nightly
+torch
+torchvision
+tqdm
+yapf
