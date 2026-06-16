@@ -79,5 +79,127 @@ gdown --folder "https://drive.google.com/drive/folders/1h21xh9JVhb_gmet8Vj8gxZy1
 
 # Preprocess datasets
 #cd ../datasets/raw
+# unzip the datasets if needed
+# Check if the datasets consist of videos or images
+# If the datasets consist of videos, move it to ../degraded/video
+# If the dataset consists of images, move it to ../degraded/images
+# The images structure must follow this structure
+# └── images/
+#     ├── train/
+#     └── test/
+#         ├── blur
+#            ├── video_1
+#            │   ├── Fame1
+#            │   ....
+#            └── video_n
+#            │   ├── Fame1
+#            │   ....
+#         └── gt
+#            ├── video_1
+#            │   ├── Fame1
+#            │   ....
+#            └── video_n
+#            │   ├── Fame1
+#            │   ....
 
+# Preprocess datasets
+RAW_DIR="../datasets/raw"
+DEG_DIR="../datasets/degraded"
+VIDEO_DIR="$DEG_DIR/video"
+IMAGE_DIR="$DEG_DIR/images"
 
+mkdir -p "$RAW_DIR" "$VIDEO_DIR"
+mkdir -p "$IMAGE_DIR"/{train,test}/{blur,gt}
+
+echo "Extracting archives if needed..."
+
+find "$RAW_DIR" -type f \( \
+  -iname "*.zip" -o \
+  -iname "*.tar" -o \
+  -iname "*.tar.gz" -o \
+  -iname "*.tgz" \
+\) -print0 | while IFS= read -r -d '' archive; do
+    lower="${archive,,}"
+
+    if [[ "$lower" == *.tar.gz || "$lower" == *.tgz ]]; then
+        out_dir="${archive%.*.*}"
+    else
+        out_dir="${archive%.*}"
+    fi
+
+    mkdir -p "$out_dir"
+
+    case "$lower" in
+        *.zip)
+            unzip -o -q "$archive" -d "$out_dir"
+            ;;
+        *.tar|*.tar.gz|*.tgz)
+            tar -xf "$archive" -C "$out_dir"
+            ;;
+    esac
+done
+
+echo "Moving video datasets..."
+
+find "$RAW_DIR" -type f \( \
+  -iname "*.mp4" -o \
+  -iname "*.avi" -o \
+  -iname "*.mov" -o \
+  -iname "*.mkv" -o \
+  -iname "*.webm" \
+\) -print0 | while IFS= read -r -d '' video; do
+    rel="${video#$RAW_DIR/}"
+    dest="$VIDEO_DIR/$(dirname "$rel")"
+    mkdir -p "$dest"
+    mv -n "$video" "$dest/"
+done
+
+echo "Moving image datasets..."
+
+declare -A group_ids
+group_counter=0
+
+while IFS= read -r -d '' img; do
+    lower="/${img,,}/"
+
+    # Detect train/test from path name
+    if [[ "$lower" == *"/train/"* ]]; then
+        split="train"
+    else
+        split="test"
+    fi
+
+    # Detect blur/gt from path name
+    if [[ "$lower" == *"/gt/"* || "$lower" == *"/ground_truth/"* || "$lower" == *"/sharp/"* || "$lower" == *"/clear/"* ]]; then
+        kind="gt"
+    else
+        kind="blur"
+    fi
+
+    rel="${img#$RAW_DIR/}"
+    parent="$(dirname "$rel")"
+    key="$split/$kind/$parent"
+
+    # Each original folder becomes video_1, video_2, ...
+    if [[ -z "${group_ids[$key]+x}" ]]; then
+        group_counter=$((group_counter + 1))
+        group_ids[$key]="video_${group_counter}"
+    fi
+
+    dest="$IMAGE_DIR/$split/$kind/${group_ids[$key]}"
+    mkdir -p "$dest"
+    mv -n "$img" "$dest/"
+
+done < <(find "$RAW_DIR" -type f \( \
+  -iname "*.jpg" -o \
+  -iname "*.jpeg" -o \
+  -iname "*.png" -o \
+  -iname "*.bmp" -o \
+  -iname "*.tif" -o \
+  -iname "*.tiff" -o \
+  -iname "*.webp" \
+\) -print0)
+
+echo "Dataset preprocessing finished."
+echo "Videos are in: $VIDEO_DIR"
+echo "Images are in: $IMAGE_DIR"
