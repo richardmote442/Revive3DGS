@@ -507,7 +507,7 @@ if __name__ == "__main__":
 
                 do_pacthes=True,
                 tile=320,
-                tile_overlap=256)
+                tile_overlap=128)
 
     end = time.time()
     print(f"Completed in {end-st}s")
