@@ -54,7 +54,7 @@ from pathlib import Path
 
 url = "https://drive.google.com/drive/folders/1Mur4IboaNgEW5qyynTIHq8CSAGtyykrA"
 out = Path("../Turtle/basicsr/trained_models")
-keep = {"GoPro_Deblur.pth", "Desnow.pth", "Raindrop.pth"}
+keep = {"GoPro_Deblur.pth", "Desnow.pth", "RainDrop.pth"}
 
 items = json.loads(subprocess.check_output(
     [sys.executable, "-m", "gdown", url, "--folder", "--json", "--quiet"],

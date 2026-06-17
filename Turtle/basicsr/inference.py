@@ -151,7 +151,7 @@ class VideoLoader(torch.utils.data.Dataset):
         self.transform = transforms.Compose([transforms.ToTensor()])
         self.reverse = transforms.Compose([transforms.ToPILImage()])
         
-        Img = Image.open(self.in_files[0])
+        Img = Image.open(self.in_files[0]).convert("RGB")
         Img = np.array(Img)
         H, W, C = Img.shape
         
@@ -159,10 +159,10 @@ class VideoLoader(torch.utils.data.Dataset):
         return self.len
 
     def __getitem__(self, index):
-        img_in = Image.open(self.in_files[index])
+        img_in = Image.open(self.in_files[index]).convert("RGB")
         img_in = np.array(img_in)
         
-        img_gt = Image.open(self.gt_files[index])
+        img_gt = Image.open(self.gt_files[index]).convert("RGB")
         img_gt = np.array(img_gt)
 
         return (self.transform(np.array(img_gt)).type(torch.FloatTensor), 
@@ -507,7 +507,7 @@ if __name__ == "__main__":
 
                 do_pacthes=True,
                 tile=320,
-                tile_overlap=128)
+                tile_overlap=256)
 
     end = time.time()
     print(f"Completed in {end-st}s")
