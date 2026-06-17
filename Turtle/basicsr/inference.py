@@ -489,7 +489,7 @@ if __name__ == "__main__":
 
     # #----------------------------------------------------------------------------------------------------------
     #Desnowing
-    config = "options/Turtle_Desnow.yml"
+    config = "../options/Turtle_Desnow.yml"
     model_path = "trained_models/Desnow.pth"
     model_name = "Gaia_Desnow_simple_full"
     print(model_name)
@@ -567,7 +567,7 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------------------------------------------
     # Deraining, raindrop
 
-    config = "options/Turtle_Derain_VRDS.yml"
+    config = "../options/Turtle_Derain_VRDS.yml"
     model_path = "trained_models/RainDrop.pth"
     model_name = "Turtle_RainDrop_simple_320_128"
     print(model_name)
