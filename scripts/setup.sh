@@ -74,7 +74,7 @@ PY
 
 # Download datasets
 mkdir -p ../datasets/raw
-gdown --fuzzy "https://drive.google.com/file/d/1S3fOnl-SEgiapFPm2s0VtUDeVYwdAnL_/view" \
+gdown "https://drive.google.com/file/d/1S3fOnl-SEgiapFPm2s0VtUDeVYwdAnL_/view" \
   -O ../datasets/raw/final_scenes.zip
 
 # Preprocess datasets
