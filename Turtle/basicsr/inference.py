@@ -397,7 +397,8 @@ def main(model_path,
          image_out_path,
          noise_sigma=50.0/255.0,
          sample=True,
-         y_channel_PSNR=False):
+         y_channel_PSNR=False,
+         scene_name=None):
 
     print(f"dataset_name: {dataset_name}")
     print(f"task_name: {task_name}")
@@ -425,8 +426,8 @@ def main(model_path,
     #     data_dir = pth_to_dataset_folder + "/datasets/MVSR4x/test/blur/"
     if dataset_name == "WeatherGS-Snow":
         data_dir = pth_to_dataset_folder + "/datasets/WeatherGS-Snow/degraded/"
-    elif dataset_name == "WeatherGS-Rain":
-        data_dir = pth_to_dataset_folder + "/datasets/WeatherGS-Rain/degraded/"
+    elif dataset_name == "RainGS":
+        data_dir = pth_to_dataset_folder + "/datasets/RainGS/degraded/"
     else:
         print(f"Invalid Options.")
         exit(0)
@@ -435,7 +436,15 @@ def main(model_path,
     model = create_video_model(opt, model_type)
 
     model, device = load_model(model_path, model)
-    videos = sorted(glob.glob(os.path.join(data_dir, '*')))
+    if scene_name is not None:
+        scene_path = os.path.join(data_dir, scene_name)
+
+        if not os.path.isdir(scene_path):
+            raise FileNotFoundError(f"Selected scene not found: {scene_path}")
+
+        videos = [scene_path]
+    else:
+        videos = sorted(glob.glob(os.path.join(data_dir, '*')))
 
     total_score_psnr = []
     total_score_ssim = []
@@ -485,32 +494,38 @@ def main(model_path,
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scene_name", type=str, default=None)
+    args = parser.parse_args()
     st = time.time()
 
     # #----------------------------------------------------------------------------------------------------------
     #Desnowing
-    config = "../options/Turtle_Desnow.yml"
-    model_path = "trained_models/Desnow.pth"
-    model_name = "Gaia_Desnow_simple_full"
-    print(model_name)
-    _, _ = main(model_path=model_path,
-                model_name=model_name, 
-                config_file=config,
+    # config = "../options/Turtle_Desnow.yml"
+    # model_path = "trained_models/Desnow.pth"
+    # model_name = "Gaia_Desnow_simple_full"
+    # print(model_name)
+    # _, _ = main(model_path=model_path,
+    #             model_name=model_name, 
+    #             config_file=config,
 
-                dataset_name="WeatherGS-Snow", # RSVD, GoPro, SR, NightRain, DVD, Set8
-                task_name="Desnowing", #Deblurring, SR, Deraining, Deblurring, Denoising
+    #             dataset_name="WeatherGS-Snow", # RSVD, GoPro, SR, NightRain, DVD, Set8
+    #             task_name="Desnowing", #Deblurring, SR, Deraining, Deblurring, Denoising
 
-                model_type="t0",
+    #             model_type="t0",
 
-                save_image=True,    
-                image_out_path="../../datasets/WeatherGS-Snow/restored/",
+    #             save_image=True,    
+    #             image_out_path="../../datasets/WeatherGS-Snow/restored/",
 
-                do_pacthes=True,
-                tile=320,
-                tile_overlap=256)
+    #             do_pacthes=True,
+    #             tile=320,
+    #             tile_overlap=256,
+    #             scene_name=args.scene_name)
 
-    end = time.time()
-    print(f"Completed in {end-st}s")
+    # end = time.time()
+    # print(f"Completed in {end-st}s")
 
 
     # ----------------------------------------------------------------------------------------------------------
@@ -575,17 +590,19 @@ if __name__ == "__main__":
                 model_name=model_name, 
                 config_file=config,
 
-                dataset_name="WeatherGS-Rain", #GoPro, SR, NightRain, DVD, Set8
+                dataset_name="RainGS", #GoPro, SR, NightRain, DVD, Set8
                 task_name="Deraining", #Deblurring, SR, Deraining, Deblurring, Denoising
 
                 model_type="t1",
 
                 save_image=True,
-                image_out_path="../../datasets/WeatherGS-Rain/restored/",
+                image_out_path="../../datasets/RainGS/restored/",
 
                 do_pacthes=True,
                 tile=320,
-                tile_overlap=128)
+                tile_overlap=128,
+                
+                scene_name=args.scene_name)
 
     end = time.time()
     print(f"Completed in {end-st}s")

@@ -5,15 +5,92 @@ LOG_FILE="setup.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 echo "Logging to $LOG_FILE"
 
-sudo apt-get update
-python -m pip install --upgrade pip
-sudo apt-get install -y build-essential cmake ninja-build git unzip libglm-dev colmap imagemagick ffmpeg
-python -m pip install "setuptools<82" wheel ninja
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+cd "$SCRIPT_DIR"
+
+# -----------------------------------------------------------------------------
+# System dependencies
+# -----------------------------------------------------------------------------
+
+sudo apt-get update
+
+# Remove CPU-only COLMAP if installed from apt
+sudo apt-get remove -y colmap || true
+
+sudo apt-get install -y \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    unzip \
+    libglm-dev \
+    imagemagick \
+    ffmpeg \
+    xvfb \
+    xauth \
+    libboost-all-dev \
+    libfreeimage-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libglew-dev \
+    libsuitesparse-dev \
+    libceres-dev \
+    libsqlite3-dev \
+    libopenimageio-dev \
+    openimageio-tools \
+    libcgal-dev \
+    libopencv-dev \
+    libmetis-dev
+
+python -m pip install --upgrade pip
+python -m pip install "setuptools<82" wheel ninja
 python -m pip install -r requirements.txt
 
-# Patch diff-gaussian-rasterization for newer compiler / Python environment
-cd ../gaussian-splatting/submodules/diff-gaussian-rasterization
+# -----------------------------------------------------------------------------
+# Build COLMAP from source with CUDA
+# -----------------------------------------------------------------------------
+
+cd "$ROOT_DIR"
+
+if [ ! -d "colmap" ]; then
+    git clone https://github.com/colmap/colmap.git
+fi
+
+cd colmap
+rm -rf build
+mkdir build
+cd build
+
+cmake .. \
+    -GNinja \
+    -DCUDA_ENABLED=ON \
+    -DGUI_ENABLED=OFF \
+    -DOPENGL_ENABLED=OFF \
+    -DCMAKE_BUILD_TYPE=Release
+
+ninja -j"$(nproc)"
+sudo ninja install
+sudo ldconfig
+
+echo "Checking COLMAP CUDA status:"
+colmap -h | grep -i cuda || true
+
+# -----------------------------------------------------------------------------
+# Patch GraphDeco convert.py for newer COLMAP option names
+# -----------------------------------------------------------------------------
+
+cd "$ROOT_DIR"
+
+sed -i 's/SiftExtraction.use_gpu/FeatureExtraction.use_gpu/g' gaussian-splatting/convert.py
+sed -i 's/SiftMatching.use_gpu/FeatureMatching.use_gpu/g' gaussian-splatting/convert.py
+
+# -----------------------------------------------------------------------------
+# Install Gaussian Splatting submodules
+# -----------------------------------------------------------------------------
+
+cd "$ROOT_DIR/gaussian-splatting/submodules/diff-gaussian-rasterization"
 
 python - <<'PY'
 from pathlib import Path
@@ -37,19 +114,31 @@ PY
 rm -rf build
 python -m pip install --no-build-isolation .
 
-cd ../../../scripts
-python -m pip install --no-build-isolation ../gaussian-splatting/submodules/simple-knn
-python -m pip install --no-build-isolation ../gaussian-splatting/submodules/fused-ssim
+cd "$SCRIPT_DIR"
 
-cd ../Turtle
+python -m pip install --no-build-isolation "$ROOT_DIR/gaussian-splatting/submodules/simple-knn"
+python -m pip install --no-build-isolation "$ROOT_DIR/gaussian-splatting/submodules/fused-ssim"
+
+# -----------------------------------------------------------------------------
+# Install Turtle
+# -----------------------------------------------------------------------------
+
+cd "$ROOT_DIR/Turtle"
 NO_CUDA_EXT=1 python -m pip install -e . --no-build-isolation --no-deps -v
 
-# Download only selected Turtle pretrained models
+# -----------------------------------------------------------------------------
+# Download selected Turtle pretrained models
+# -----------------------------------------------------------------------------
+
+cd "$SCRIPT_DIR"
+
 python -m pip install gdown
-mkdir -p ../Turtle/basicsr/trained_models
+mkdir -p "$ROOT_DIR/Turtle/basicsr/trained_models"
 
 python - <<'PY'
-import json, subprocess, sys
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 url = "https://drive.google.com/drive/folders/1Mur4IboaNgEW5qyynTIHq8CSAGtyykrA"
@@ -63,64 +152,46 @@ items = json.loads(subprocess.check_output(
 
 for item in items:
     name = Path(item["path"]).name
-    if name in keep:
-        subprocess.check_call([
-            sys.executable, "-m", "gdown",
-            item["url"],
-            "-O", str(out / name),
-            "--continue"
-        ])
+
+    if name not in keep:
+        continue
+
+    dst = out / name
+
+    if dst.exists() and dst.stat().st_size > 0:
+        print(f"Already exists, skipping: {dst}")
+        continue
+
+    subprocess.check_call([
+        sys.executable, "-m", "gdown",
+        item["url"],
+        "-O", str(dst),
+        "--continue"
+    ])
 PY
 
+# -----------------------------------------------------------------------------
 # Download datasets
-mkdir -p ../datasets/raw
+# -----------------------------------------------------------------------------
+
+mkdir -p "$ROOT_DIR/datasets/raw"
+
 gdown "https://drive.google.com/file/d/1S3fOnl-SEgiapFPm2s0VtUDeVYwdAnL_/view" \
-  -O ../datasets/raw/final_scenes.zip
+    -O "$ROOT_DIR/datasets/raw/final_scenes.zip"
 
-# Preprocess datasets
-#cd ../datasets/raw
-# unzip the datasets if needed
-# The dataset consist of images in this structure:
-# └── raw/
-#     ├── final_scenes/
-#     └── factory_rain/
-#         ├── gt
-#         │   ├── xxxx.png
-#              ...
-#         │   ├── xxxx.png
-#         ├── images
-#         │   ├── xxxx.png
-#              ...
-#         │   ├── xxxx.png
-#         ├── masks
-#         ├── sparse
-#         ├── weather_images
-#     └── #other scenes with same structure as factory rain/
+# Optional RainGS download
+# gdown "https://drive.google.com/file/d/1SIX8D_j0t9l6qmGOt-VsTOQYQfh_tNUl/view?usp=sharing" \
+#     -O "$ROOT_DIR/datasets/raw/rain_streak.tar"
 
-# For each scene, copy gt and images folders to the WeatherGS folder with this structure
-# The "images" folder becomes the "degraded" folder, and the "gt" folder becomes the "gt" folder in the WeatherGS dataset.
-# └── WeatherGS/
-#         ├── degraded
-#            ├── factory_rain/
-#            │   ├── xxxx.png
-#            │   ....
-#            └── Other_scenes/
-#            │   ├── xxxx.png
-#            │   ....
-#         └── gt
-#            ├── factory_rain/
-#            │   ├── xxxx.png
-#            │   ....
-#            └── Other_scenes/
-#            │   ├── xxxx.png
-#            │   ....
-
+# -----------------------------------------------------------------------------
 # Preprocess WeatherGS-Snow and WeatherGS-Rain datasets
-RAW_DIR="../datasets/raw"
+# -----------------------------------------------------------------------------
+
+RAW_DIR="$ROOT_DIR/datasets/raw"
 SCENE_ROOT="$RAW_DIR/final_scenes"
 
-SNOW_DIR="../datasets/WeatherGS-Snow"
-RAIN_DIR="../datasets/WeatherGS-Rain"
+SNOW_DIR="$ROOT_DIR/datasets/WeatherGS-Snow"
+RAIN_DIR="$ROOT_DIR/datasets/WeatherGS-Rain"
 
 echo "Extracting final_scenes.zip..."
 unzip -o -q "$RAW_DIR/final_scenes.zip" -d "$RAW_DIR"
