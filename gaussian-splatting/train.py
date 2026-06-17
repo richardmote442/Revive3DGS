@@ -22,6 +22,7 @@ from tqdm import tqdm
 from utils.image_utils import psnr
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
+from veil_field import VeilField
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -50,6 +51,15 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     gaussians = GaussianModel(dataset.sh_degree, opt.optimizer_type)
     scene = Scene(dataset, gaussians)
     gaussians.training_setup(opt)
+    veil = None
+    veil_name2idx = {}
+    veil_optimizer = None
+    if getattr(dataset, "veil", False):
+        _names = sorted(c.image_name for c in scene.getTrainCameras())
+        veil_name2idx = {n: i for i, n in enumerate(_names)}
+        veil = VeilField(len(_names), latent_dim=dataset.veil_latent, grid=dataset.veil_grid).cuda()
+        veil_optimizer = torch.optim.Adam(veil.parameters(), lr=dataset.veil_lr, eps=1e-15)
+        print(f"[VEIL] enabled: {len(_names)} views grid={dataset.veil_grid} latent={dataset.veil_latent} lr={dataset.veil_lr} lambda_t={dataset.veil_lambda_t}")
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
         gaussians.restore(model_params, opt)
@@ -117,13 +127,20 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         # Loss
         gt_image = viewpoint_cam.original_image.cuda()
-        Ll1 = l1_loss(image, gt_image)
-        if FUSED_SSIM_AVAILABLE:
-            ssim_value = fused_ssim(image.unsqueeze(0), gt_image.unsqueeze(0))
+        veil_reg = torch.zeros((), device="cuda")
+        if veil is not None:
+            _vidx = veil_name2idx[viewpoint_cam.image_name]
+            image_used, veil_t, veil_a = veil.composite(image, _vidx)
+            veil_reg = dataset.veil_lambda_t * ((1.0 - veil_t) ** 2).mean()
         else:
-            ssim_value = ssim(image, gt_image)
+            image_used = image
+        Ll1 = l1_loss(image_used, gt_image)
+        if FUSED_SSIM_AVAILABLE:
+            ssim_value = fused_ssim(image_used.unsqueeze(0), gt_image.unsqueeze(0))
+        else:
+            ssim_value = ssim(image_used, gt_image)
 
-        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim_value)
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim_value) + veil_reg
 
         # Depth regularization
         Ll1depth_pure = 0.0
@@ -159,6 +176,10 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
+                if veil is not None:
+                    torch.save({"state_dict": veil.state_dict(), "name2idx": veil_name2idx,
+                                "grid": dataset.veil_grid, "latent": dataset.veil_latent},
+                               os.path.join(scene.model_path, "veil_%d.pth" % iteration))
 
             # Densification
             if iteration < opt.densify_until_iter:
@@ -184,6 +205,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 else:
                     gaussians.optimizer.step()
                     gaussians.optimizer.zero_grad(set_to_none = True)
+                if veil_optimizer is not None:
+                    veil_optimizer.step()
+                    veil_optimizer.zero_grad(set_to_none = True)
 
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
@@ -267,6 +291,11 @@ if __name__ == "__main__":
     parser.add_argument('--disable_viewer', action='store_true', default=False)
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
+    parser.add_argument("--veil", action="store_true", default=False)
+    parser.add_argument("--veil_grid", type=int, default=16)
+    parser.add_argument("--veil_latent", type=int, default=32)
+    parser.add_argument("--veil_lambda_t", type=float, default=0.05)
+    parser.add_argument("--veil_lr", type=float, default=0.01)
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     
@@ -279,7 +308,10 @@ if __name__ == "__main__":
     if not args.disable_viewer:
         network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
+    _ds = lp.extract(args)
+    _ds.veil = args.veil; _ds.veil_grid = args.veil_grid; _ds.veil_latent = args.veil_latent
+    _ds.veil_lambda_t = args.veil_lambda_t; _ds.veil_lr = args.veil_lr
+    training(_ds, op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
 
     # All done
     print("\nTraining complete.")
