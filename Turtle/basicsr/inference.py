@@ -567,28 +567,28 @@ if __name__ == "__main__":
     # ----------------------------------------------------------------------------------------------------------
     # Deraining, raindrop
 
-    # config = "options/Turtle_Derain_VRDS.yml"
-    # model_path = "trained_models/RainDrop.pth"
-    # model_name = "Turtle_RainDrop_simple_320_128"
-    # print(model_name)
-    # _, _ = main(model_path=model_path,
-    #             model_name=model_name, 
-    #             config_file=config,
+    config = "options/Turtle_Derain_VRDS.yml"
+    model_path = "trained_models/RainDrop.pth"
+    model_name = "Turtle_RainDrop_simple_320_128"
+    print(model_name)
+    _, _ = main(model_path=model_path,
+                model_name=model_name, 
+                config_file=config,
 
-    #             dataset_name="WeatherGS-Rain", #GoPro, SR, NightRain, DVD, Set8
-    #             task_name="Deraining", #Deblurring, SR, Deraining, Deblurring, Denoising
+                dataset_name="WeatherGS-Rain", #GoPro, SR, NightRain, DVD, Set8
+                task_name="Deraining", #Deblurring, SR, Deraining, Deblurring, Denoising
 
-    #             model_type="t1",
+                model_type="t1",
 
-    #             save_image=True,
-    #             image_out_path="../../datasets/WeatherGS-Rain/restored/",
+                save_image=True,
+                image_out_path="../../datasets/WeatherGS-Rain/restored/",
 
-    #             do_pacthes=True,
-    #             tile=320,
-    #             tile_overlap=128)
+                do_pacthes=True,
+                tile=320,
+                tile_overlap=128)
 
-    # end = time.time()
-    # print(f"Completed in {end-st}s")
+    end = time.time()
+    print(f"Completed in {end-st}s")
 
     #----------------------------------------------------------------------------------------------------------
     # Deblurring, Gopro
