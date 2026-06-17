@@ -22,3 +22,28 @@ scipy
 tb-nightly
 tqdm
 yapf
+# requirements for 3DGS
+plyfile
+tqdm
+opencv-python
+joblib
+torch
+torchvision
+torchaudio
+
+
+# requirements for turtle
+addict
+future
+lmdb
+numpy
+opencv-python
+Pillow
+pyyaml
+requests
+scikit-image
+scipy
+tb-nightly
+tqdm
+yapf
+matplotlib

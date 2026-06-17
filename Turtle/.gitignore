@@ -11,6 +11,5 @@ tb_logger
 placeholder_datasetDAVIS
 placeholder_dataset
 outputs
-options
 basicsr/inference_outputs
 inference_outputs
