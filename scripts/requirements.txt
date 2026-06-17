@@ -47,3 +47,4 @@ tb-nightly
 tqdm
 yapf
 matplotlib
+einops
